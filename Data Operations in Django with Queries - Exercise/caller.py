@@ -9,7 +9,7 @@ django.setup()
 # Import your models here
 
 # Create queries within functions
-from main_app.models import Pet, Artifact, Location, Car, Task, HotelRoom
+from main_app.models import Pet, Artifact, Location, Car, Task, HotelRoom, Character, CharacterChoices
 
 
 # Task 1
@@ -81,7 +81,7 @@ def delete_last_car():
     last_car.delete()
 
 
-# Task 5 75/100
+# Task 5
 def show_unfinished_tasks():
     unfinished_tasks = Task.objects.filter(is_finished=False)
 
@@ -112,31 +112,86 @@ def encode_and_replace(text, task_title):
         task.save()
 
 
-# Task 6 60/100
+# Task 6
+
 def get_deluxe_rooms():
-    deluxe_rooms = HotelRoom.objects.filter(room_type="Deluxe", id__mod=2)
-    room_strings = [f"Deluxe room with number {room.room_number} costs {room.price_per_night}$ per night!" for room in deluxe_rooms]
-    return '\n'.join(room_strings)
+    deluxe_rooms = HotelRoom.objects.filter(room_type='Deluxe')
+    output = [f'Deluxe room with number {room.room_number} costs {room.price_per_night}$ per night!'
+              for room in deluxe_rooms]
+    return '\n'.join(output)
 
 
 def increase_room_capacity():
-    rooms = HotelRoom.objects.filter(is_reserved=False).order_by('capacity')
-    for room in rooms:
-        room.capacity += room.id if room.id == 1 else rooms.get(id=room.id - 1).capacity
+    rooms = HotelRoom.objects.order_by('id')
+
+    for idx, room in enumerate(rooms):
+        if not room.is_reserved:
+            continue
+        if idx == 0:
+            room.capacity += room.id
+        elif room.is_reserved:
+            room.capacity += rooms[idx - 1].capacity
         room.save()
 
 
 def reserve_first_room():
     first_room = HotelRoom.objects.first()
-    if first_room:
-        first_room.is_reserved = True
-        first_room.save()
+    first_room.is_reserved = True
+    first_room.save()
 
 
 def delete_last_room():
-    last_room = HotelRoom.objects.filter(is_reserved=True).last()
-    if last_room:
-        last_room.delete()
+    HotelRoom.objects.last().delete()
 
 
 # Task 7
+def update_characters():
+    characters = Character.objects.all()
+    for character in characters:
+        if character.class_name == 'Mage':
+            character.level += 3
+            character.intelligence -= 7
+        elif character.class_name == 'Warrior':
+            character.hit_points /= 2
+            character.dexterity += 4
+        elif character.class_name in ('Assassin', 'Scout'):
+            character.inventory = 'The inventory is empty'
+        character.save()
+
+
+def fuse_characters(first_character, second_character):
+    inventory = ''
+    if first_character.class_name in ('Mage', 'Scout'):
+        inventory = 'Bow of the Elven Lords, Amulet of Eternal Wisdom'
+    elif first_character.class_name in ('Warrior', 'Assassin'):
+        inventory = 'Dragon Scale Armor, Excalibur'
+
+    Character.objects.create(
+        name=f'{first_character.name} {second_character.name}',
+        class_name=CharacterChoices.FUSION,
+        level=(first_character.level + second_character.level) // 2,
+        strength=int((first_character.strength + second_character.strength) * 1.2),
+        dexterity=int((first_character.dexterity + second_character.dexterity) * 1.4),
+        intelligence=int((first_character.intelligence + second_character.intelligence) * 1.5),
+        hit_points=(first_character.hit_points + second_character.hit_points),
+        inventory=inventory
+    )
+
+    first_character.delete()
+    second_character.delete()
+
+
+def grand_dexterity():
+    Character.objects.all().update(dexterity=30)
+
+
+def grand_intelligence():
+    Character.objects.all().update(intelligence=40)
+
+
+def grand_strength():
+    Character.objects.all().update(strength=50)
+
+
+def delete_characters():
+    Character.objects.filter(inventory__icontains='The inventory is empty').delete()
