@@ -1,8 +1,9 @@
+from datetime import timedelta
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.core.exceptions import ValidationError
-from datetime import date, timedelta
-from django.db.models import Count, Q
+from django.db.models import Count
+from django.db.models import F
 
 
 class RealEstateListingManager(models.Manager):
@@ -16,11 +17,9 @@ class RealEstateListingManager(models.Manager):
         return self.filter(bedrooms=bedrooms_count)
 
     def popular_locations(self):
-        return (
-            self.values('location')
-            .annotate(location_count=Count('location'))
-            .order_by('location_count', 'location')[:2]
-        )
+        location_counts = self.values('location').annotate(location_count=Count('location')).order_by('location_count', 'location')
+        top_locations = location_counts.order_by('-location_count', 'location')[:2]
+        return top_locations
 
 
 class RealEstateListing(models.Model):
@@ -32,15 +31,12 @@ class RealEstateListing(models.Model):
         ('Studio', 'Studio'),
     ]
 
-    property_type = models.CharField(max_length=20, choices=PROPERTY_TYPE_CHOICES)
+    property_type = models.CharField(max_length=100, choices=PROPERTY_TYPE_CHOICES)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     bedrooms = models.PositiveIntegerField()
     location = models.CharField(max_length=100)
 
     objects = RealEstateListingManager()
-
-    def __str__(self):
-        return f"{self.get_property_type_display()} in {self.location}"
 
 
 class VideoGameManager(models.Manager):
@@ -136,37 +132,47 @@ class Programmer(models.Model):
         return Project.objects.prefetch_related('technologies_used').filter(programmer=self)
 
 
-class TaskManager(models.Manager):
-    def overdue_high_priority_tasks(self):
-        return self.filter(priority='High', is_completed=False, completion_date__gt=models.F('creation_date'))
-
-    def completed_mid_priority_tasks(self):
-        return self.filter(priority='Medium', is_completed=True)
-
-    def search_tasks(self, query):
-        from django.db.models import Q
-        return self.filter(Q(title__icontains=query) | Q(description__icontains=query))
-
-    def recent_completed_tasks(self, days):
-        cutoff_date = date.today() - timedelta(days=days)
-        return self.filter(is_completed=True, completion_date__gte=cutoff_date)
-
-
 class Task(models.Model):
-    PRIORITY_CHOICES = (
+    PRIORITIES = (
         ('Low', 'Low'),
         ('Medium', 'Medium'),
         ('High', 'High')
     )
 
-    title = models.CharField(max_length=100)
+    title = models.CharField(max_length=200)
     description = models.TextField()
-    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES)
+    priority = models.CharField(max_length=20, choices=PRIORITIES)
     is_completed = models.BooleanField(default=False)
     creation_date = models.DateField()
-    completion_date = models.DateField(null=True, blank=True)
+    completion_date = models.DateField()
 
-    objects = TaskManager()
+    @classmethod
+    def overdue_high_priority_tasks(cls):
+        return cls.objects.filter(
+            priority='High',
+            is_completed=False,
+            completion_date__gt=F('creation_date')
+        )
+
+    @classmethod
+    def completed_mid_priority_tasks(cls):
+        return cls.objects.filter(
+            priority='Medium',
+            is_completed=True
+        )
+
+    @classmethod
+    def search_tasks(cls, query: str):
+        return cls.objects.filter(
+            models.Q(title__icontains=query) | models.Q(description__icontains=query)
+        )
+
+    @classmethod
+    def recent_completed_tasks(cls, days: int):
+        return cls.objects.filter(
+            is_completed=True,
+            completion_date__gte=F('creation_date') - timedelta(days=days)
+        )
 
 
 class Exercise(models.Model):
