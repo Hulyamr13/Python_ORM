@@ -59,6 +59,8 @@ def add_records_to_database():
     return "All data entered!"
 
 
+add_records_to_database()
+
 # Run and print your queries
 # print(add_records_to_database())
 
@@ -100,15 +102,22 @@ from django.db.models.functions import Cast
 
 
 def give_discount():
-    # Reduce the price of available products with prices greater than 3.00 by 30%
     Product.objects.filter(is_available=True, price__gt=3.00).update(price=F('price') * 0.7)
 
-    # Retrieve all available products and their prices
     products = Product.objects.filter(is_available=True).annotate(
         price_integer=Cast(F('price'), IntegerField())
     ).order_by('-price_integer', 'name')
 
-    # Format the information as specified
     result = "\n".join([f"{product.name}: {product.price:.2f}lv." for product in products])
 
     return result
+
+
+print('All Products:')
+print(Product.objects.all())
+print()
+print('All Available Products:')
+print(Product.objects.available_products())
+print()
+print('All Available Food Products:')
+print(Product.objects.available_products_in_category("Food"))
